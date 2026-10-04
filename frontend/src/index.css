@@ -1,0 +1,34 @@
+@import "tailwindcss";
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden; /* prevent horizontal scroll when content overflows */
+}
+
+.tda-chart {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  max-width: 100%;
+  height: auto;
+}
+
+/* Ensure media elements don’t overflow their containers */
+img, svg, canvas, video {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}

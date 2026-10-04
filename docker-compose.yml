@@ -1,0 +1,172 @@
+# Docker Compose file for XK-Fi full stack
+ # Note: Compose v2 no longer requires a 'version' field; omit to avoid warnings.
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: xkfi-postgres
+    environment:
+      POSTGRES_DB: xkfi_tda
+      POSTGRES_USER: xkfi_user
+      POSTGRES_PASSWORD: xkfi_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U xkfi_user -d xkfi_tda"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - xkfi-network
+    restart: unless-stopped
+
+  # MongoDB (existing)
+  mongodb:
+    image: mongo:7-jammy
+    container_name: xkfi-mongodb
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password
+      MONGO_INITDB_DATABASE: xkfi-tda
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - xkfi-network
+    restart: unless-stopped
+    healthcheck:
+      test: mongosh --quiet --eval "db.adminCommand('ping')"
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # Backend API (Node.js)
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      args:
+        NODE_ENV: production
+    container_name: xkfi-backend
+    environment:
+      NODE_ENV: production
+      PORT: 5000
+      MONGODB_URI: mongodb://admin:password@mongodb:27017/xkfi-tda?authSource=admin
+      POSTGRES_URL: postgresql://xkfi_user:xkfi_password@postgres:5432/xkfi_tda
+      JWT_SECRET: your-super-secret-jwt-key-change-in-production
+      JWT_EXPIRE: 7d
+      FRONTEND_URL: http://localhost:5173
+      TDA_SERVICE_URL: http://tda-service:8000
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      tda-service:
+        condition: service_healthy
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./backend/uploads:/app/uploads
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:5000/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) });"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - xkfi-network
+    restart: unless-stopped
+
+  # FastAPI TDA Microservice
+  tda-service:
+    build:
+      context: ./tda-service
+      dockerfile: Dockerfile
+    container_name: xkfi-tda-service
+    volumes:
+      - ./backend/uploads:/app/uploads
+    environment:
+      PYTHONPATH: /app
+      DATABASE_URL: postgresql://xkfi_user:xkfi_password@postgres:5432/xkfi_tda
+      LOG_LEVEL: INFO
+      UVICORN_HOST: 0.0.0.0
+      UVICORN_PORT: 8000
+      UVICORN_RELOAD: "false"
+      UVICORN_WORKERS: "1"
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "timeout", "30", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 30s
+      retries: 5
+      start_period: 90s
+    networks:
+      - xkfi-network
+    restart: unless-stopped
+
+  # Frontend (React)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: /api
+        VITE_TDA_SERVICE_URL: /tda
+    environment:
+      - VITE_API_URL=/api
+      - VITE_TDA_SERVICE_URL=/tda
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+      - tda-service
+    networks:
+      - xkfi-network
+    restart: unless-stopped
+
+  # Nginx Reverse Proxy (Optional)
+  nginx:
+    image: nginx:alpine
+    container_name: xkfi-nginx
+    # This service is optional. It will NOT start unless you enable the 'proxy' profile:
+    #   docker compose --profile proxy up -d
+    profiles: ["proxy"]
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./nginx/ssl:/etc/nginx/ssl
+    depends_on:
+      - frontend
+      - backend
+      - tda-service
+    networks:
+      - xkfi-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  mongodb_data:
+
+networks:
+  xkfi-network:
+    driver: bridge

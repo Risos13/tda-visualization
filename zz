@@ -1,0 +1,15 @@
+How others can run the full stack
+
+Prereqs: Docker Desktop
+Commands:
+docker compose up -d
+Open http://localhost:3000
+
+
+How others can run it
+
+Clone the repo
+Install Docker Desktop
+In repo root, run:
+powershell
+docker compose up -d --build postgres mongodb backend tda-service frontend

@@ -1,0 +1,17 @@
+{
+  "type": "graph",
+  "directed": false,
+  "nodes": [
+    { "id": "A", "label": "A" },
+    { "id": "B", "label": "B" },
+    { "id": "C", "label": "C" },
+    { "id": "D", "label": "D" }
+  ],
+  "edges": [
+    { "source": "A", "target": "B", "weight": 1.0 },
+    { "source": "B", "target": "C", "weight": 0.8 },
+    { "source": "C", "target": "D", "weight": 0.6 },
+    { "source": "D", "target": "A", "weight": 0.9 },
+    { "source": "A", "target": "C", "weight": 0.3 }
+  ]
+}
